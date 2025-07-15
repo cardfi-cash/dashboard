@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useEffect, useState } from 'react';
+import { useAccount, useConnect, useSignMessage } from 'wagmi';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -17,15 +17,78 @@ import {
 } from 'lucide-react';
 import { mockCards, mockTransactions } from '../utils/mock-data';
 import { Transaction } from '../types';
+import { api_user_info, api_user_login } from '@/core/api';
+import { checkAuth } from '@/core/utils';
+import { setAuth, setUserId } from '@/core/storage';
 
 const Dashboard = () => {
   const { address, isConnected } = useAccount();
+  const { signMessageAsync } =useSignMessage();
   const [selectedCard, setSelectedCard] = useState(mockCards[0]);
   const [showBalance, setShowBalance] = useState(true);
   const [rechargeAmount, setRechargeAmount] = useState('');
   const [isRecharging, setIsRecharging] = useState(false);
   const [showNewCardForm, setShowNewCardForm] = useState(false);
   const [newCardName, setNewCardName] = useState('');
+
+  
+  const [isAuth , setIsAuth] = useState(false)
+  const [initLock , setInitLock] = useState(false)
+    useEffect(() => {
+    const auth = checkAuth()
+    setIsAuth(auth);
+
+    const init = async () => {
+        const data = await api_user_info()
+        console.log(data)
+        if(data && data.data)
+          {
+            
+          }
+        };
+
+
+    if(!auth)
+    {
+      console.log('Not auth yet , sign message');
+      signIn()
+    }else{
+      if(isConnected)
+      {
+        if(!initLock)
+        {
+          setInitLock(true);
+          init();
+        }
+      }else{
+        //Logout
+        setAuth("")
+      }
+
+    }
+
+  }, [isConnected]); 
+
+    const signIn = async () => {
+      const msg = `CardFi Protocol Sign : ${Date.now()}`  
+      const data = await signMessageAsync({ message: msg });
+      
+      const body = {
+        address : address.toString(),
+        msg,
+        sign:data
+      }
+
+      console.log(body)
+      const auth = await api_user_login(body)
+      console.log(auth)
+      if(auth && auth?.code == 200 && auth?.data)
+      {
+        setAuth(auth.data.token);
+        setUserId(auth.data.info.id);
+        setIsAuth(true);
+      }
+    };
 
   const handleRecharge = async () => {
     if (!rechargeAmount || isNaN(Number(rechargeAmount))) return;
@@ -68,7 +131,7 @@ const Dashboard = () => {
     }
   };
 
-  if (!isConnected) {
+  if (!isConnected || !isAuth) {
     return (
       <div className="text-center space-y-6 py-20">
         <Card className="max-w-md mx-auto">
@@ -78,11 +141,25 @@ const Dashboard = () => {
             <p className="text-muted-foreground">
               Please connect your wallet to access your Cardfi dashboard and manage your prepaid cards.
             </p>
+            {
+              isConnected?
+            <Button 
+              gradient 
+              onClick={() => signIn()}
+              className="self-start"
+            >
+              
+              SignIn
+            </Button>
+            :
+            null
+            }
           </div>
         </Card>
       </div>
     );
   }
+
 
   return (
     <div className="space-y-8">
@@ -288,8 +365,9 @@ const Dashboard = () => {
               
               <div className="text-xs text-muted-foreground space-y-1">
                 <p>• Funds will be available instantly</p>
-                <p>• Gas fees: ~$2.50</p>
-                <p>• Supported: USDC, USDT, DAI</p>
+                <p>• Gas fees: ~$0.50</p>
+                <p>• Deposit fees: 1.49%</p>
+                <p>• Supported: USDC, USDT</p>
               </div>
             </div>
           </Card>
