@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useAccount, useConnect, useSignMessage } from 'wagmi';
+import { useAccount, useConnect, useSendTransaction, useSignMessage ,useWriteContract } from 'wagmi';
+import { parseUnits ,isAddress} from 'viem';
+import { erc20Abi } from 'viem';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -18,19 +20,49 @@ import {
 } from 'lucide-react';
 import { defaultCards, defaultTransactions, mockCards, mockTransactions } from '../utils/mock-data';
 import { Transaction } from '../types';
-import { api_user_info, api_user_login } from '@/core/api';
-import { checkAuth } from '@/core/utils';
+import { api_card_apply, api_order_check, api_user_info, api_user_info_update, api_user_login } from '@/core/api';
+import { checkAuth, formatTime, sleep } from '@/core/utils';
 import { setAuth, setUserId } from '@/core/storage';
+import config, { getChain, getToken } from '@/core/config';
+import { generateQRCodeBase64 } from '@/core/qr';
+import { getChainId } from 'viem/actions';
 
 const Dashboard = () => {
-  const { address, isConnected } = useAccount();
+  
+  const countries = config.region;
+  const [copiedIndex, setCopiedIndex] = useState<number>(0);
+  const [generatingOpen, setGeneratingOpen] = useState(false);
+  const [targetQr, setTargetQr] = useState('');
+  const [target, setTarget] = useState("0x0ff238b62d8E38102e3225cAb5F61f459eDb893e");
+  const [targetAmount, setTargetAmount] = useState('');
+  
+  const [tips,setTips] = useState(` ⚠ Tips : Please wait for few min for transaction confirm . ❗ Don't pay twice !`);
+
+  const [from, setFrom] = useState("USDTARBITRUM");
+  const [invoiceId , setInvoiceId] = useState("")
+  const [secondsLeft, setSecondsLeft] = useState(25 * 60);
+  const [phone, setPhone] = useState('');
+  const [phoneCode, setPhoneCode] = useState('');
+  const [email, setEmail] = useState('');
+  const [firstName,setFirstName]= useState('');
+  const [lastName,setLastName]= useState('');
+  const [holderRegion, setHolderRegion] = useState('HK');
+  const [holderZipcode, setHolderZipcode] = useState('');
+  const [holderCity, setHolderCity] = useState('');
+  const [holderDetails, setHolderDetails] = useState('');
+
+
+  const { address, isConnected , chain } = useAccount();
   const { signMessageAsync } =useSignMessage();
+  const { writeContract ,writeContractAsync } = useWriteContract()
+  const { sendTransactionAsync } = useSendTransaction();
   const [selectedCard, setSelectedCard] = useState({} as any);
   const [transactions, setTransactions] = useState({} as any);
   const [showBalance, setShowBalance] = useState(true);
   const [rechargeAmount, setRechargeAmount] = useState('');
   const [isRecharging, setIsRecharging] = useState(false);
   const [showNewCardForm, setShowNewCardForm] = useState(false);
+  const [showInvoice, setShowInvoice] = useState(false);
   const [newCardName, setNewCardName] = useState('');
 
   const [cards, setCards] = useState([]);
@@ -51,15 +83,8 @@ const Dashboard = () => {
       setCards(defaultCards)
       setSelectedCard(defaultCards[0])
       setTransactions(defaultTransactions)
-        // const data = await api_user_info()
-        // console.log(data)
-        // if(data && data.data)
-        //   {
-            
-        //   }
+      await userInfoInit()
     };
-
-
     if(!auth)
     {
       console.log('Not auth yet , sign message');
@@ -81,26 +106,179 @@ const Dashboard = () => {
 
   }, [isConnected]); 
 
-    const signIn = async () => {
-      const msg = `CardFi Protocol Sign : ${Date.now()}`  
-      const data = await signMessageAsync({ message: msg } as any);
+  const signIn = async () => {
+    const msg = `CardFi Protocol Sign : ${Date.now()}`  
+    const data = await signMessageAsync({ message: msg } as any);
+    
+    const body = {
+      address : address.toString(),
+      msg,
+      sign:data
+    }
+
+    console.log(body)
+    const auth = await api_user_login(body)
+    console.log(auth)
+    if(auth && auth?.code == 200 && auth?.data)
+    {
+      setAuth(auth.data.token);
+      setUserId(auth.data.info.id);
+      setIsAuth(true);
+    }
+  };
+
+  const userInfoInit = async()=>
+  {
+          const data = await api_user_info()
+          console.log(data)
+          if(data && data.data)
+          {
+            let d = data.data
+            setPhoneCode(d.mobile.nation_code)
+            setPhone(d.mobile.mobile)
+            setEmail(d.email)
+            setFirstName(d.first_name)
+            setLastName(d.last_name)
+            setHolderRegion(d.region);
+
+            let add = d.address.split("|");
+            if(add[0])
+            {
+              setHolderZipcode(add[0]);
+            }
+            if(add[1])
+            {
+              setHolderCity(add[1])
+            }
+
+            if(add[2])
+            {
+              setHolderDetails(add[2])
+            }
+          }
+  }
+  
+  const apply = async() =>
+  {
+    if(!isConnected)
+    {
       
-      const body = {
-        address : address.toString(),
-        msg,
-        sign:data
+    }else{
+
+      try{
+          //Submit the address to server and generate invoice id
+          await updateHolderInfo()
+          //Submit the invoice id on chain .
+          await confirmPayment()
+          // location.href="/home/card"
+      }catch(e)
+      {
+        console.error(e)
       }
 
-      console.log(body)
-      const auth = await api_user_login(body)
-      console.log(auth)
-      if(auth && auth?.code == 200 && auth?.data)
+     
+    }
+  }
+
+  const updateHolderInfo=async()=>
+{
+      const infoUpdate = await api_user_info_update(
+        {
+          first_name:firstName,
+          last_name:lastName,
+          birth:"2001-12-20",
+          email,
+          mobile: {
+              nation_code:phoneCode,
+              mobile:phone
+          },
+          region:holderRegion,
+          address:`${holderZipcode}|${holderCity}|${holderDetails}`
+        }
+      )
+      console.log(infoUpdate)
+      return infoUpdate
+}
+
+const confirmPayment = async ()=>
+{
+      if(generatingOpen)
       {
-        setAuth(auth.data.token);
-        setUserId(auth.data.info.id);
-        setIsAuth(true);
+        return false // avoide twice click .
       }
-    };
+      const newOrder = await api_card_apply(
+        {
+          cardId:0,
+          token:from
+        }
+      )
+      console.log(
+        newOrder
+      )
+      const qr = await generateQRCodeBase64(newOrder.data.to);
+      setGeneratingOpen(true)
+      setTargetQr(qr)
+      setTarget(newOrder.data.to);
+      setTargetAmount(Number(newOrder.data.amount).toString())
+      timer()
+      setShowInvoice(true)
+      while(true)
+      {
+          await sleep(10000);
+          const check = await api_order_check(newOrder.data.orderId);
+          console.log("check",check)
+          if(check.data)
+          {
+              location.href="/"
+          }
+          if(secondsLeft == 0 )
+          {
+              location.href="/"
+          }
+      }
+}
+
+  const timer = ()=>
+  {
+    if (secondsLeft <= 0) return;
+
+    const timer = setInterval(() => {
+      setSecondsLeft((prev) => prev - 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }
+
+const applyNewCardPayment = async () => {
+  try {
+    if (!isAddress(target)) {
+        throw new Error('Invalid address');
+    }
+    const tkf = getToken(from)
+    if(!tkf)
+    {
+      throw new Error('Invalid token');
+    }
+const tx = await writeContractAsync({
+  address: (tkf.address ?? '') as `0x${string}`,
+  abi: erc20Abi,
+  functionName: 'transfer',
+  args: [target as `0x${string}`, parseUnits(targetAmount, 6)],
+  account: address as `0x${string}`,
+  chain,
+});
+
+    console.log('Transaction hash:', tx);
+    setTips(`
+      🍺 Transaction sent successfully. Please wait for block confirmation. Don't pay twice!
+    `);
+    return true;
+  } catch (err) {
+    console.error('Transfer failed:', err);
+    setTips(`❌ Transaction failed: ${err.message}`);
+    return false;
+  }
+};
 
   const handleRecharge = async () => {
     if (!rechargeAmount || isNaN(Number(rechargeAmount))) return;
@@ -411,15 +589,322 @@ const Dashboard = () => {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <Card className="w-full max-w-md">
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-white">Create New Card</h3>
-              
+              <h3 className="text-lg font-semibold text-white">Apply New Card</h3>
+            <div style={{ marginBottom: '24px' }}>
+              <label
+                htmlFor="holder"
+                className='text-white'
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                }}
+              >
+                {"Holder"}
+                <span style={{ marginLeft: '4px' }}>*</span>
+              </label>
+              <div className="w-full flex">
               <Input
-                label="Card Name"
-                placeholder="e.g., Travel Card, Shopping Card"
-                value={newCardName}
-                onChange={(e) => setNewCardName(e.target.value)}
+                id="holder"
+                type="text"
+                placeholder="First Name"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  fontSize: '14px',
+                  borderRadius: '8px',
+                  border: `1px solid`,
+                  boxSizing: 'border-box',
+                 
+                }}
               />
-              
+                <Input
+                id="holder"
+                type="text"
+                placeholder="Last name"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  fontSize: '14px',
+                  borderRadius: '8px',
+                  border: `1px solid`,
+                  boxSizing: 'border-box',
+                  
+                }}
+              />
+              </div>
+            </div>
+            <div style={{ marginBottom: '24px' }}>
+              <label
+                htmlFor="phone"
+                className='text-white'
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                }}
+              >
+                {"Phone Number"}
+                <span style={{ marginLeft: '4px' }}>*</span>
+              </label>
+              <div className="w-full flex">
+              <input
+                id="phoneCode"
+                type="text"
+                placeholder="852"
+                required
+                value={phoneCode}
+                onChange={(e) => setPhoneCode(e.target.value)}
+                style={{
+                  width: '20%',
+                  padding: '12px 16px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  borderRadius: '8px',
+                  border: `1px solid`,
+                  boxSizing: 'border-box',
+                  color:"white",
+                  backgroundColor:"transparent"
+                }}
+              />
+              <input
+                id="phone"
+                type="text"
+                placeholder="Phone Number"
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                style={{
+                  width: '80%',
+                  padding: '12px 16px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  borderRadius: '8px',
+                  border: `1px solid`,
+                  boxSizing: 'border-box',
+                  color:"white",
+                  backgroundColor:"transparent"
+                }}
+              />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label
+                className='text-white'
+                htmlFor="email"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                }}
+              >
+                {"Email"}
+                <span style={{ marginLeft: '4px' }}>*</span>
+              </label>
+              <Input
+                id="holder"
+                type="text"
+                placeholder="Email address"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  fontSize: '14px',
+                  borderRadius: '8px',
+                  border: `1px solid`,
+                  boxSizing: 'border-box',
+                   
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+              <div style={{ flex: 1 }}>
+                <label
+                  className='text-white'
+                  htmlFor="holderRegion"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    marginBottom: '8px',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                  }}
+                >
+                  {"Address"}
+                  <span style={{ marginLeft: '4px' }}>*</span>
+                </label>
+
+                <select
+                  id="holderRegion"
+                  required
+                  value={holderRegion}
+                  onChange={(e) => setHolderRegion(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    fontSize: '14px',
+                    borderRadius: '8px',
+                    border: `1px solid`,
+                    backgroundColor: 'transparent',
+                    boxSizing: 'border-box',
+                    color:"white",
+                    
+                  }}
+                >
+                  <option value="" disabled>
+                    {'Select Region'}
+                  </option>
+                  {(Object.keys(countries)).map((country) => (
+                    <option key={country} value={country} style={{color:"black"}}>
+                      {countries[country]}
+                    </option>
+                  ))}
+              </select>
+              </div>
+              <div style={{ flex: 1 }}>
+                <label
+                  className='text-white'
+                  htmlFor="holderZipcode"
+                  style={{
+                    display: 'block',
+                    marginBottom: '8px',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                  }}
+                >
+                  &nbsp;
+                </label>
+                <Input
+                  id="holderZipcode"
+                  type="text"
+                  placeholder={"PostCode"}
+                  required
+                  value={holderZipcode}
+                  onChange={(e) => setHolderZipcode(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    fontSize: '14px',
+                    borderRadius: '8px',
+                    border: `1px solid`,
+                    boxSizing: 'border-box',
+                     
+                  }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label
+                  className='text-white'
+                  htmlFor="holderCity"
+                  style={{
+                    display: 'block',
+                    marginBottom: '8px',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                  }}
+                >
+                  &nbsp;
+                </label>
+                <Input
+                  id="holderCity"
+                  type="text"
+                  placeholder={"City"}
+                  required
+                  value={holderCity}
+                  onChange={(e) => setHolderCity(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    fontSize: '14px',
+                    borderRadius: '8px',
+                    border: `1px solid`,
+                    boxSizing: 'border-box',
+                     
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <Input
+                id="holderDetails"
+                type="text"
+                placeholder={"Stree"}
+                required
+                value={holderDetails}
+                onChange={(e) => setHolderDetails(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  fontSize: '14px',
+                  borderRadius: '8px',
+                  border: `1px solid`,
+                  boxSizing: 'border-box',
+                   
+                }}
+              />
+            </div>
+
+
+            <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+              <div style={{ flex: 1 }}>
+                <label
+                  className='text-white'
+                  htmlFor="holderRegion"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    marginBottom: '8px',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                  }}
+                >
+                  {"Pay With"}
+                  <span style={{ marginLeft: '4px' }}>*</span>
+                </label>
+
+                <select
+                  id="from"
+                  required
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    fontSize: '14px',
+                    borderRadius: '8px',
+                    border: `1px solid`,
+                    backgroundColor: 'transparent',
+                    boxSizing: 'border-box',
+                    color:"white",
+                    
+                  }}
+                >
+                  <option value="" disabled>
+                    {'Select Token'}
+                  </option>
+                  {(config.tokens).map((tk) => (
+                    <option key={tk.id} value={tk.id} style={{color:"black"}}>
+                      {tk.name}
+                    </option>
+                  ))}
+              </select>
+              </div>
+
+            </div>
               <div className="flex space-x-3">
                 <Button 
                   variant="outline" 
@@ -432,10 +917,86 @@ const Dashboard = () => {
                 <Button 
                   gradient 
                   className="flex-1" 
-                  onClick={handleNewCard}
-                  disabled={!newCardName.trim()}
+                  onClick={apply}
                 >
-                  Create Card
+                  Apply Card
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {showInvoice && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-white">Confirm Payment</h3>
+              <p className="grow text-center font-bold text-white">Transfer {targetAmount} {from} to</p>
+              <section className="flex flex-col gap-2">
+                    <div className="search-items flex flex-wrap gap-2">
+                      <div className="w-full flex justify-center items-center">
+                        <div className="flex w-full">
+                          <pre className="w-full text-center text-sm bg-gray-800 p-2 rounded text-white overflow-hidden text-ellipsis whitespace-nowrap">{target}</pre>
+                        </div>
+                      </div>
+                        <div className="w-full flex justify-center items-center">
+                          <button
+                            // onClick={() => handleCopy(target, 0)}
+                            className="w-3/5 text-xs px-2 py-1 rounded-xl bg-gray-800 hover:bg-gray-500 transition text-center  text-white"
+                          >
+                            {copiedIndex === 1  ? 'Copied!' : 'Copy'}
+                          </button>
+                        </div>
+
+                      <div className="w-full flex justify-center items-center">
+                          <img
+                          src={targetQr?targetQr:"/img/logo.png"}
+                          style={{
+                            width:"50%",
+                            height:"50%",
+                            minWidth:"256px",
+                            minHeight:"256px"
+                          }}
+                          />
+                        </div>
+
+
+                        <div className="w-full flex justify-center items-center  text-white">
+                          <div className="text-6xl font-bold text-gray-300">
+                            {formatTime(secondsLeft)}
+                          </div>
+                        </div>
+
+                          <Button 
+                            gradient 
+                            className="flex-1 w-full min-h-[50px]" 
+                            onClick={applyNewCardPayment}
+                          >
+                            Connect And Send
+                          </Button>
+                    </div>
+                        <div className="w-full flex justify-center items-center text-sm text-white">
+                         {tips}
+                        </div>
+                  </section>
+
+              <div className="flex space-x-3">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => setShowInvoice(false)}
+                  style={{color:"white"}}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  gradient 
+                  className="flex-1" 
+                  onClick={handleNewCard}
+                  // disabled={!newCardName.trim()}
+                >
+                  Connect Wallet
                 </Button>
               </div>
             </div>

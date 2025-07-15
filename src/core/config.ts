@@ -31,8 +31,8 @@ const config =  {
             img:"",
             feeLimit:"10000/TX , 10000/D , 50000/M"
         },
-        },
-        chains:[
+    },
+    chains:[
         {
             name:"Polygon",
             id:"POL",
@@ -55,6 +55,48 @@ const config =  {
             }
         },
     ],
+    tokens:[
+        {
+            id:"USDTARBITRUM",
+            name:"USDT",
+            img:"/img/chains/usdt.png",
+            decimal:9,
+            address:"0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9"
+        },
+        {
+            id:"USDCARBITRUM",
+            name:"USDC",
+            img:"/img/chains/usdc.png",
+            decimal:9,
+            address:"0xaf88d065e77c8cc2239327c5edb3a432268e5831"
+        }
+    ],
+    abi:{
+        erc20:[
+                {
+                    "constant": false,
+                    "inputs": [
+                    {
+                        "name": "to",
+                        "type": "address"
+                    },
+                    {
+                        "name": "value",
+                        "type": "uint256"
+                    }
+                    ],
+                    "name": "transfer",
+                    "outputs": [
+                    {
+                        "name": "",
+                        "type": "bool"
+                    }
+                    ],
+                    "type": "function"
+                }
+            ]
+
+    },
     region:{
             "AF": "Afghanistan",
             "AX": "Aland Islands",
@@ -332,7 +374,21 @@ const getChain = (id:string) =>
     }
     return false;
 }
+
+const getToken = (id:string) =>
+{
+    for(let i in config.tokens)
+    {
+        let e = config.tokens[i];
+        if(e.id.toUpperCase() == id.toUpperCase())
+        {
+            return e
+        }
+    }
+    return false;
+}
 export {
     getCardById,
-    getChain
+    getChain,
+    getToken
 }
