@@ -22,7 +22,7 @@ export interface StakingPool {
 
 export interface Transaction {
   id: string;
-  type: 'recharge' | 'spend' | 'stake' | 'unstake' | 'reward';
+  type: 'recharge' | 'spend' | 'stake' | 'unstake' | 'reward' | 'signin';
   amount: number;
   currency: string;
   status: 'pending' | 'completed' | 'failed';

@@ -308,13 +308,21 @@ const Farming = () => {
                     </div>
                   </div>
                   
-                  <Button 
+                  {/* <Button 
                     gradient 
                     className="w-full" 
                     onClick={handleStake}
                     disabled={!stakeAmount || isStaking}
                   >
                     {isStaking ? 'Staking...' : `Stake ${selectedPool.token}`}
+                  </Button> */}
+                  <Button 
+                    gradient 
+                    className="w-full" 
+                    onClick={handleStake}
+                    disabled={true}
+                  >
+                    Coming Soon...
                   </Button>
                 </div>
               ) : (
@@ -337,13 +345,22 @@ const Farming = () => {
                     </p>
                   </div>
                   
-                  <Button 
+                  {/* <Button 
                     gradient 
                     className="w-full" 
                     onClick={handleUnstake}
                     disabled={!unstakeAmount || isUnstaking}
                   >
                     {isUnstaking ? 'Unstaking...' : `Unstake ${selectedPool.token}`}
+                  </Button> */}
+
+                  <Button 
+                    gradient 
+                    className="w-full" 
+                    onClick={handleStake}
+                    disabled={true}
+                  >
+                    Coming Soon...
                   </Button>
                 </div>
               )}

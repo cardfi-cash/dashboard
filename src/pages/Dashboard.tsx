@@ -3,6 +3,7 @@ import { useAccount, useConnect, useSignMessage } from 'wagmi';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
+import { Card as tCard, StakingPool as tStakingPool, Transaction as tTransaction } from '../types';
 import { 
   CreditCard, 
   Plus, 
@@ -15,7 +16,7 @@ import {
   DollarSign,
   Activity
 } from 'lucide-react';
-import { mockCards, mockTransactions } from '../utils/mock-data';
+import { defaultCards, defaultTransactions, mockCards, mockTransactions } from '../utils/mock-data';
 import { Transaction } from '../types';
 import { api_user_info, api_user_login } from '@/core/api';
 import { checkAuth } from '@/core/utils';
@@ -24,14 +25,22 @@ import { setAuth, setUserId } from '@/core/storage';
 const Dashboard = () => {
   const { address, isConnected } = useAccount();
   const { signMessageAsync } =useSignMessage();
-  const [selectedCard, setSelectedCard] = useState(mockCards[0]);
+  const [selectedCard, setSelectedCard] = useState({} as any);
+  const [transactions, setTransactions] = useState({} as any);
   const [showBalance, setShowBalance] = useState(true);
   const [rechargeAmount, setRechargeAmount] = useState('');
   const [isRecharging, setIsRecharging] = useState(false);
   const [showNewCardForm, setShowNewCardForm] = useState(false);
   const [newCardName, setNewCardName] = useState('');
 
-  
+  const [cards, setCards] = useState([]);
+
+  const [sumInfo, setSumInfo] = useState({
+    totalBalance:0,
+    activeCard:0,
+    usedBalance:0
+  });
+
   const [isAuth , setIsAuth] = useState(false)
   const [initLock , setInitLock] = useState(false)
     useEffect(() => {
@@ -39,13 +48,16 @@ const Dashboard = () => {
     setIsAuth(auth);
 
     const init = async () => {
-        const data = await api_user_info()
-        console.log(data)
-        if(data && data.data)
-          {
+      setCards(defaultCards)
+      setSelectedCard(defaultCards[0])
+      setTransactions(defaultTransactions)
+        // const data = await api_user_info()
+        // console.log(data)
+        // if(data && data.data)
+        //   {
             
-          }
-        };
+        //   }
+    };
 
 
     if(!auth)
@@ -71,7 +83,7 @@ const Dashboard = () => {
 
     const signIn = async () => {
       const msg = `CardFi Protocol Sign : ${Date.now()}`  
-      const data = await signMessageAsync({ message: msg });
+      const data = await signMessageAsync({ message: msg } as any);
       
       const body = {
         address : address.toString(),
@@ -127,6 +139,7 @@ const Dashboard = () => {
       case 'stake': return <TrendingUp className="w-4 h-4 text-blue-400" />;
       case 'unstake': return <TrendingUp className="w-4 h-4 text-orange-400" />;
       case 'reward': return <DollarSign className="w-4 h-4 text-purple-400" />;
+      case 'signin': return <ArrowDownCircle className="w-4 h-4 text-green-400" />;
       default: return <Activity className="w-4 h-4" />;
     }
   };
@@ -188,7 +201,7 @@ const Dashboard = () => {
             <div>
               <p className="text-sm text-muted-foreground">Total Balance</p>
               <p className="text-2xl font-bold text-white">
-                ${mockCards.reduce((sum, card) => sum + card.balance, 0).toLocaleString()}
+                ${sumInfo.totalBalance}
               </p>
             </div>
             <div className="w-12 h-12 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center">
@@ -202,7 +215,7 @@ const Dashboard = () => {
             <div>
               <p className="text-sm text-muted-foreground">Active Cards</p>
               <p className="text-2xl font-bold text-white">
-                {mockCards.filter(card => card.isActive).length}
+                {sumInfo.activeCard}
               </p>
             </div>
             <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
@@ -214,8 +227,8 @@ const Dashboard = () => {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">This Month</p>
-              <p className="text-2xl font-bold text-white">$1,247</p>
+              <p className="text-sm text-muted-foreground">Used</p>
+              <p className="text-2xl font-bold text-white">${sumInfo.usedBalance}</p>
             </div>
             <div className="w-12 h-12 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 flex items-center justify-center">
               <Activity className="w-6 h-6 text-white" />
@@ -278,7 +291,7 @@ const Dashboard = () => {
               
               {/* Card Selection */}
               <div className="flex space-x-3 overflow-x-auto pb-2">
-                {mockCards.map((card) => (
+                {cards.map((card) => (
                   <button
                     key={card.id}
                     onClick={() => setSelectedCard(card)}
@@ -305,7 +318,7 @@ const Dashboard = () => {
               <h3 className="text-lg font-semibold text-white">Recent Transactions</h3>
               
               <div className="space-y-3">
-                {mockTransactions.slice(0, 5).map((transaction) => (
+                {transactions.slice(0, 5).map((transaction) => (
                   <div key={transaction.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-colors">
                     <div className="flex items-center space-x-3">
                       {getTransactionIcon(transaction.type)}
@@ -378,7 +391,7 @@ const Dashboard = () => {
               <h3 className="text-lg font-semibold text-white">Quick Actions</h3>
               
               <div className="space-y-2">
-                <Button variant="outline" className="w-full justify-start" style={{color:"white"}}>
+                <Button variant="outline" className="w-full justify-start" style={{color:"white"}} onClick={() => setShowBalance(!showBalance)}>
                   <Eye className="w-4 h-4 mr-2" />
                   View Card Details
                 </Button>
@@ -386,11 +399,6 @@ const Dashboard = () => {
                 <Button variant="outline" className="w-full justify-start" style={{color:"white"}}>
                   <Activity className="w-4 h-4 mr-2" />
                   Transaction History
-                </Button>
-                
-                <Button variant="outline" className="w-full justify-start" style={{color:"white"}}>
-                  <MoreVertical className="w-4 h-4 mr-2" />
-                  Card Settings
                 </Button>
               </div>
             </div>

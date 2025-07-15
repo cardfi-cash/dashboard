@@ -22,6 +22,18 @@ export const mockCards: Card[] = [
     createdAt: new Date('2024-02-20'),
   },
 ];
+export const defaultCards: Card[] = [
+  {
+    id: '1',
+    name: 'Apply Now',
+    balance: 0,
+    currency: 'USDC',
+    cardNumber: '**** **** **** 0000',
+    isActive: true,
+    type: 'prepaid',
+    createdAt: new Date('0000-00-00'),
+  },
+];
 
 export const mockStakingPools: StakingPool[] = [
   {
@@ -36,8 +48,8 @@ export const mockStakingPools: StakingPool[] = [
   },
   {
     id: '2',
-    name: 'ETH Staking',
-    token: 'ETH',
+    name: 'USDT Vault',
+    token: 'USDT',
     apy: 12.3,
     totalStaked: 1800,
     userStaked: 2.5,
@@ -46,8 +58,8 @@ export const mockStakingPools: StakingPool[] = [
   },
   {
     id: '3',
-    name: 'Cardfi LP',
-    token: 'CFI-ETH',
+    name: 'LPUSDT',
+    token: 'LPUSDT',
     apy: 24.7,
     totalStaked: 850000,
     userStaked: 1200,
@@ -95,5 +107,19 @@ export const mockTransactions: Transaction[] = [
     timestamp: new Date('2024-07-05'),
     description: 'Staking rewards claimed',
     hash: '0x9876...5432',
+  },
+];
+
+
+export const defaultTransactions: Transaction[] = [
+  {
+    id: '1',
+    type: 'signin',
+    amount: 0,
+    currency: 'USDC',
+    status: 'completed',
+    timestamp: new Date(Date.now()),
+    description: 'Sign-In Success',
+    hash: '0x1234...5678',
   },
 ];
