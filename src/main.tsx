@@ -6,10 +6,10 @@ import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { config } from './config/wagmi.ts';
 import App from './App.tsx';
-
+import { Buffer } from 'buffer';
 import '@rainbow-me/rainbowkit/styles.css';
 import './index.css';
-
+window.Buffer = Buffer;
 const queryClient = new QueryClient();
 
 const customTheme = darkTheme({

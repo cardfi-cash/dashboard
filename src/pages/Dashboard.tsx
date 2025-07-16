@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useAccount, useConnect, useSendTransaction, useSignMessage ,useWriteContract } from 'wagmi';
+import { useAccount, useSignMessage ,useWriteContract ,useReadContract , usePublicClient ,useSendTransaction } from 'wagmi';
 import { parseUnits ,isAddress} from 'viem';
 import { erc20Abi } from 'viem';
 import Card from '../components/ui/Card';
@@ -26,6 +26,7 @@ import { setAuth, setUserId } from '@/core/storage';
 import config, { getChain, getToken } from '@/core/config';
 import { generateQRCodeBase64 } from '@/core/qr';
 import { getChainId } from 'viem/actions';
+import { deposite } from '@/core/contract';
 
 const Dashboard = () => {
   
@@ -55,7 +56,8 @@ const Dashboard = () => {
   const { address, isConnected , chain } = useAccount();
   const { signMessageAsync } =useSignMessage();
   const { writeContract ,writeContractAsync } = useWriteContract()
-  const { sendTransactionAsync } = useSendTransaction();
+  const publicClient = usePublicClient()
+  const { sendTransactionAsync } = useSendTransaction ()
   const [selectedCard, setSelectedCard] = useState({} as any);
   const [transactions, setTransactions] = useState({} as any);
   const [showBalance, setShowBalance] = useState(true);
@@ -191,9 +193,8 @@ const Dashboard = () => {
       // console.log(c)
       cs.push(c)
       sum.totalBalance+=Number(i?.available_balance)
-
       //Transaction check
-      for(let u of i.hisotry.transactions)
+      for(let u of i.transaction.transactions)
       {
         txs.push(
           {
@@ -208,11 +209,30 @@ const Dashboard = () => {
           }
         )
       }
+
+      for(let u of i.history.history)
+      {
+        let type = 'spend';
+        Number(u.amount.amount)>0 ? type='recharge' : type = type = 'spend'
+        txs.push(
+          {
+            id: u?.transaction_id,
+            type: type,
+            amount: u.amount.amount,
+            currency: 'USDC',
+            status: 'completed',
+            timestamp: u.transaction_time,
+            description:type,
+            hash: '0x1234...5678',
+          }
+        )
+      }
     }
     sum.activeCard = data.data.length;
     setSumInfo(sum)
     setCards(cs)
     setSelectedCard(cs[0])
+    
     if(txs.length>0)
     {
       setTransactions(txs);
@@ -300,68 +320,81 @@ const confirmPayment = async ()=>
 }
 
   const timer = ()=>
-  {
-    if (secondsLeft <= 0) return;
-
-    const timer = setInterval(() => {
-      setSecondsLeft((prev) => prev - 1);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }
-
-const applyNewCardPayment = async () => {
-  try {
-    if (!isAddress(target)) {
-        throw new Error('Invalid address');
-    }
-    const tkf = getToken(from)
-    if(!tkf)
     {
-      throw new Error('Invalid token');
-    }
-const tx = await writeContractAsync({
-  address: (tkf.address ?? '') as `0x${string}`,
-  abi: erc20Abi,
-  functionName: 'transfer',
-  args: [target as `0x${string}`, parseUnits(targetAmount, 6)],
-  account: address as `0x${string}`,
-  chain,
-});
+      if (secondsLeft <= 0) return;
 
-    console.log('Transaction hash:', tx);
-    setTips(`
-      🍺 Transaction sent successfully. Please wait for block confirmation. Don't pay twice!
-    `);
-    return true;
-  } catch (err) {
-    console.error('Transfer failed:', err);
-    setTips(`❌ Transaction failed: ${err.message}`);
-    return false;
-  }
-};
+      const timer = setInterval(() => {
+        setSecondsLeft((prev) => prev - 1);
+      }, 1000);
+
+      return () => clearInterval(timer);
+    }
+
+  const applyNewCardPayment = async () => {
+    try {
+      if (!isAddress(target)) {
+          throw new Error('Invalid address');
+      }
+      const tkf = getToken(from)
+      if(!tkf)
+      {
+        throw new Error('Invalid token');
+      }
+      const tx = await writeContractAsync({
+        address: (tkf.address ?? '') as `0x${string}`,
+        abi: erc20Abi,
+        functionName: 'transfer',
+        args: [target as `0x${string}`, parseUnits(targetAmount, 6)],
+        account: address as `0x${string}`,
+        chain,
+      });
+
+      console.log('Transaction hash:', tx);
+      setTips(`
+        🍺 Transaction sent successfully. Please wait for block confirmation. Don't pay twice!
+      `);
+      return true;
+    } catch (err) {
+      console.error('Transfer failed:', err);
+      setTips(`❌ Transaction failed: ${err.message}`);
+      return false;
+    }
+  };
 
   const handleRecharge = async () => {
     if (!rechargeAmount || isNaN(Number(rechargeAmount))) return;
     
     setIsRecharging(true);
     // Simulate transaction
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Do charge
+    const dp = await deposit()
+    console.log(dp)
+    if(dp)
+    {
+      await sleep(15000);
+      await userCardInit()
+    }
     setIsRecharging(false);
     setRechargeAmount('');
     // In a real app, this would update the card balance
   };
 
-  const handleNewCard = async () => {
-    if (!newCardName.trim()) return;
-    
-    // Simulate card creation
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setShowNewCardForm(false);
-    setNewCardName('');
-    // In a real app, this would create a new card
-  };
-
+  async function deposit() {
+    let finalAmount = (Number(rechargeAmount)*1e6).toFixed(0)
+    const tkf = getToken(from)
+    if(!tkf)
+    {
+      return false;
+    }
+    return await deposite(
+      selectedCard.id,
+      finalAmount,
+      address,
+      tkf.address,
+      publicClient,
+      writeContractAsync
+    )
+  }
   const getStatusColor = (status: Transaction['status']) => {
     switch (status) {
       case 'completed': return 'text-green-400';
@@ -568,7 +601,7 @@ const tx = await writeContractAsync({
                           {transaction.description}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {transaction.timestamp.toLocaleDateString()}
+                          {new Date(transaction.timestamp).toLocaleString()}
                         </p>
                       </div>
                     </div>
@@ -600,11 +633,11 @@ const tx = await writeContractAsync({
               
               <div className="space-y-3">
                 <Input
-                  label="Amount (USDC)"
                   type="number"
-                  placeholder="0.00"
+                  placeholder="0.00 $"
                   value={rechargeAmount}
                   onChange={(e) => setRechargeAmount(e.target.value)}
+                  
                 />
                 <select
                   id="from"
@@ -1081,7 +1114,7 @@ const tx = await writeContractAsync({
                 <Button 
                   gradient 
                   className="flex-1" 
-                  onClick={handleNewCard}
+                  onClick={applyNewCardPayment}
                   // disabled={!newCardName.trim()}
                 >
                   Connect Wallet

@@ -98,7 +98,7 @@ const Farming = () => {
               <span className="text-sm text-muted-foreground">Total Staked</span>
             </div>
             <p className="text-2xl font-bold text-white">
-              ${mockStakingPools.reduce((sum, pool) => sum + pool.userStaked * 1200, 0).toLocaleString()}
+              ${mockStakingPools.reduce((sum, pool) => sum + pool.userStaked, 0).toLocaleString()}
             </p>
           </div>
         </Card>
@@ -110,7 +110,7 @@ const Farming = () => {
               <span className="text-sm text-muted-foreground">Total Rewards</span>
             </div>
             <p className="text-2xl font-bold text-white">
-              ${mockStakingPools.reduce((sum, pool) => sum + pool.rewards * 1200, 0).toFixed(2)}
+              ${mockStakingPools.reduce((sum, pool) => sum + pool.rewards, 0).toFixed(2)}
             </p>
           </div>
         </Card>
