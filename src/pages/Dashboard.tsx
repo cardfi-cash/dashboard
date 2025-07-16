@@ -20,8 +20,8 @@ import {
 } from 'lucide-react';
 import { defaultCards, defaultTransactions, mockCards, mockTransactions } from '../utils/mock-data';
 import { Transaction } from '../types';
-import { api_card_apply, api_order_check, api_user_info, api_user_info_update, api_user_login } from '@/core/api';
-import { checkAuth, formatTime, sleep } from '@/core/utils';
+import { api_card_apply, api_order_check, api_user_cards, api_user_data, api_user_info, api_user_info_update, api_user_login } from '@/core/api';
+import { checkAuth, formatPan, formatTime, sleep } from '@/core/utils';
 import { setAuth, setUserId } from '@/core/storage';
 import config, { getChain, getToken } from '@/core/config';
 import { generateQRCodeBase64 } from '@/core/qr';
@@ -84,6 +84,7 @@ const Dashboard = () => {
       setSelectedCard(defaultCards[0])
       setTransactions(defaultTransactions)
       await userInfoInit()
+      await userCardInit()
     };
     if(!auth)
     {
@@ -130,7 +131,7 @@ const Dashboard = () => {
   const userInfoInit = async()=>
   {
           const data = await api_user_info()
-          console.log(data)
+          // console.log(data)
           if(data && data.data)
           {
             let d = data.data
@@ -156,6 +157,66 @@ const Dashboard = () => {
               setHolderDetails(add[2])
             }
           }
+  }
+  const userCardInit = async()=>
+  {
+     const data = await api_user_cards()
+    //  console.log(data)
+     if(data && data.code ==200 &&data?.data && data.data?.length>0)
+     {
+
+     }else{
+      return false;
+     }
+    let cs = [];
+    let txs = [];
+    let sum = JSON.parse(
+      JSON.stringify(sumInfo)
+    )
+    for(let i of data.data)
+    {
+      let c =   {
+        id: i?.user_card_id,
+        name: `${i.card_region} CARD`,
+        balance: i?.available_balance,
+        currency: 'USD',
+        cardNumber: formatPan(i?.pan),
+        isActive: true,
+        type: 'prepaid',
+        createdAt: new Date(i?.create_time),
+        cvv:i?.cvv,
+        month:i?.expire_month,
+        year:i?.expire_year
+      }
+      // console.log(c)
+      cs.push(c)
+      sum.totalBalance+=Number(i?.available_balance)
+
+      //Transaction check
+      for(let u of i.hisotry.transactions)
+      {
+        txs.push(
+          {
+            id: u?.transaction_id,
+            type: 'spend',
+            amount: u.surcharge.amount,
+            currency: 'USDC',
+            status: 'completed',
+            timestamp: u.confirm_time,
+            description: u.biz_type,
+            hash: '0x1234...5678',
+          }
+        )
+      }
+    }
+    sum.activeCard = data.data.length;
+    setSumInfo(sum)
+    setCards(cs)
+    setSelectedCard(cs[0])
+    if(txs.length>0)
+    {
+      setTransactions(txs);
+    }
   }
   
   const apply = async() =>
@@ -450,16 +511,18 @@ const tx = await writeContractAsync({
                     
                     <div className="space-y-2">
                       <p className="text-2xl font-mono tracking-wider">
-                        {selectedCard.cardNumber}
+                        {showBalance ? selectedCard.cardNumber : '•••• •••• •••• ••••'}
                       </p>
                       <div className="flex justify-between items-end">
                         <div>
                           <p className="text-xs opacity-60">VALID THRU</p>
-                          <p className="text-sm font-mono">12/27</p>
+                          <p className="text-sm font-mono">{selectedCard?.month ?`${selectedCard?.month}/${selectedCard?.year}` :"12/2027"}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs opacity-60">CARDHOLDER</p>
-                          <p className="text-sm">{address?.slice(0, 6)}...{address?.slice(-4)}</p>
+                          <p className="text-xs opacity-60">CVV</p>
+                          <p className="text-xl font-mono tracking-wider">
+                            {showBalance ? selectedCard?.cvv : '•••'}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -543,14 +606,39 @@ const tx = await writeContractAsync({
                   value={rechargeAmount}
                   onChange={(e) => setRechargeAmount(e.target.value)}
                 />
-                
+                <select
+                  id="from"
+                  required
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 12px',
+                    fontSize: '10px',
+                    borderRadius: '10px',
+                    border: `1px solid`,
+                    backgroundColor: 'transparent',
+                    boxSizing: 'border-box',
+                    color:"white",
+                    
+                  }}
+                >
+                  <option value="" disabled>
+                    {'Select Token'}
+                  </option>
+                  {(config.tokens).map((tk) => (
+                    <option key={tk.id} value={tk.id} style={{color:"black"}}>
+                      {tk.name}
+                    </option>
+                  ))}
+              </select>
                 <Button 
                   gradient 
                   className="w-full" 
                   onClick={handleRecharge}
                   disabled={!rechargeAmount || isRecharging}
                 >
-                  {isRecharging ? 'Processing...' : 'Recharge Card'}
+                  {isRecharging ? 'Processing...' : 'Deposit'}
                 </Button>
               </div>
               

@@ -24,7 +24,23 @@ function checkAuth() {
 
   return false;
 }
+
+function formatPan(data:string)
+{
+  let ret ="";
+  for(let i = 0 ; i < data.length ; i++)
+  {
+    ret+=data[i]
+    if((i+1)%4 == 0)
+    {
+      ret+=" "
+    }
+  }
+
+  return ret;
+}
 export {
     sleep,
-    checkAuth
+    checkAuth,
+    formatPan
 }
