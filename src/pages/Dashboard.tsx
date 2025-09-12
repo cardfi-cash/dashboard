@@ -126,7 +126,8 @@ const Dashboard = () => {
     {
       setAuth(auth.data.token);
       setUserId(auth.data.info.id);
-      setIsAuth(true);
+      window.location.reload();
+      // setIsAuth(true);
     }
   };
 
