@@ -9,7 +9,7 @@ function App() {
       <Layout>
         <Routes>
           {/* <Route path="/" element={<Landing />} /> */}
-          <Route path="/" element={<Dashboard />} />
+          {/* <Route path="/" element={<Dashboard />} /> */}
           <Route path="/farming" element={<Farming />} />
         </Routes>
       </Layout>

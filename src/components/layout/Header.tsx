@@ -1,7 +1,9 @@
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+// import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { Link, useLocation } from 'react-router-dom';
 import { CreditCard, TrendingUp, Home } from 'lucide-react';
-
+import { WalletModalProvider, WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 const Header = () => {
   const location = useLocation();
 
@@ -9,7 +11,7 @@ const Header = () => {
     { path: '/', label: 'Dashboard', icon: CreditCard },
     { path: '/farming', label: 'Farming', icon: TrendingUp },
   ];
-
+  const {setVisible} = useWalletModal()
   return (
     <header className="sticky top-0 z-50 glass-card border-b border-white/10">
       <div className="container mx-auto px-4 py-4">
@@ -53,6 +55,11 @@ const Header = () => {
               accountStatus="avatar"
               chainStatus="icon"
               showBalance={false}
+              label='ARB Login'
+            />
+            <WalletMultiButton
+            children="Solana Login"
+            style={{maxHeight:"40px",}}
             />
           </div>
         </div>
