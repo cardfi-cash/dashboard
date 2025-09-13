@@ -27,7 +27,7 @@ import config, { getChain, getToken } from '@/core/config';
 import { generateQRCodeBase64 } from '@/core/qr';
 import { getChainId } from 'viem/actions';
 import { deposite } from '@/core/contract';
-
+import { useWallet } from '@solana/wallet-adapter-react';
 const Dashboard = () => {
   
   const countries = config.region;
@@ -67,6 +67,8 @@ const Dashboard = () => {
   const [showInvoice, setShowInvoice] = useState(false);
   const [newCardName, setNewCardName] = useState('');
 
+  const {connect,connected,publicKey} = useWallet()
+
   const [cards, setCards] = useState([]);
 
   const [sumInfo, setSumInfo] = useState({
@@ -77,7 +79,16 @@ const Dashboard = () => {
 
   const [isAuth , setIsAuth] = useState(false)
   const [initLock , setInitLock] = useState(false)
-    useEffect(() => {
+
+  const isEvm = ()=>
+  {
+    return isConnected ?true:false
+  }
+  const walletConnection = () =>
+  {
+    return isConnected || connected ;
+  }
+  useEffect(() => {
     const auth = checkAuth()
     setIsAuth(auth);
 
@@ -93,7 +104,7 @@ const Dashboard = () => {
       console.log('Not auth yet , sign message');
       signIn()
     }else{
-      if(isConnected)
+      if(walletConnection())
       {
         if(!initLock)
         {
@@ -107,7 +118,7 @@ const Dashboard = () => {
 
     }
 
-  }, [isConnected]); 
+  }, [isConnected,connect]); 
 
   const signIn = async () => {
     const msg = `CardFi Protocol Sign : ${Date.now()}`  

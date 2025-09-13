@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-// import { useAccount } from 'wagmi';
+import { useState } from 'react';
+import { useAccount } from 'wagmi';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -16,21 +16,16 @@ import {
 } from 'lucide-react';
 import { mockStakingPools } from '../utils/mock-data';
 import { StakingPool } from '../types';
-import { useWallet } from '@solana/wallet-adapter-react';
+
 const Farming = () => {
-  // const { isConnected } = useAccount();
-  const isConnected=true;
+  const { isConnected } = useAccount();
   const [selectedPool, setSelectedPool] = useState<StakingPool | null>(null);
   const [stakeAmount, setStakeAmount] = useState('');
   const [unstakeAmount, setUnstakeAmount] = useState('');
   const [isStaking, setIsStaking] = useState(false);
   const [isUnstaking, setIsUnstaking] = useState(false);
   const [activeTab, setActiveTab] = useState<'stake' | 'unstake'>('stake');
-  const {connected,publicKey} = useWallet()
 
-  useEffect(() => {
-    console.log(connected,publicKey)
-  },[isConnected,publicKey])
   const handleStake = async () => {
     if (!stakeAmount || !selectedPool) return;
     

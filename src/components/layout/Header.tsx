@@ -4,6 +4,8 @@ import { CreditCard, TrendingUp, Home } from 'lucide-react';
 import { WalletModalProvider, WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAccount } from 'wagmi';
+import { useWallet } from '@solana/wallet-adapter-react';
 const Header = () => {
   const location = useLocation();
 
@@ -12,6 +14,8 @@ const Header = () => {
     { path: '/farming', label: 'Farming', icon: TrendingUp },
   ];
   const {setVisible} = useWalletModal()
+  const { address, isConnected , chain } = useAccount();
+  const {connected,publicKey} = useWallet()
   return (
     <header className="sticky top-0 z-50 glass-card border-b border-white/10">
       <div className="container mx-auto px-4 py-4">
@@ -51,16 +55,26 @@ const Header = () => {
 
           {/* Wallet Connect */}
           <div className="flex items-center space-x-4">
-            <ConnectButton
-              accountStatus="avatar"
-              chainStatus="icon"
-              showBalance={false}
-              label='ARB Login'
-            />
+            {
+              !connected?
+              <ConnectButton
+                accountStatus="avatar"
+                chainStatus="icon"
+                showBalance={false}
+                label='ARB Login'
+              />
+              :
+              null
+            }
+            {
+            !isConnected ?
             <WalletMultiButton
-            children="Solana Login"
+            children={connected ? "" : "Solana Login"}
             style={{maxHeight:"40px",}}
             />
+            :
+            null
+            }
           </div>
         </div>
 
